@@ -6,10 +6,8 @@ const {
   StreamType,
   AudioPlayerStatus,
   getVoiceConnection,
-  VoiceConnectionStatus,
 } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
-const { token } = require('./config.json');
 
 const client = new Client({
   intents: [
@@ -35,12 +33,12 @@ client.on('messageCreate', async (message) => {
   if (command === 'play') {
     const voiceChannel = message.member.voice.channel;
     if (!voiceChannel) {
-      return message.reply('❌ **You must join a voice channel first!**');
+      return message.reply('❌ Join a voice channel first!');
     }
 
     const url = args[0];
     if (!ytdl.validateURL(url)) {
-      return message.reply('❌ **Invalid YouTube URL provided!**');
+      return message.reply('❌ Invalid YouTube URL!');
     }
 
     const connection = joinVoiceChannel({
@@ -49,51 +47,35 @@ client.on('messageCreate', async (message) => {
       adapterCreator: message.guild.voiceAdapterCreator,
     });
 
-    connection.on('stateChange', (oldState, newState) => {
-      console.log(`🔎 Connection changed from ${oldState.status} to ${newState.status}`);
-    });
-
-    connection.on(VoiceConnectionStatus.Ready, () => {
-      console.log('🔊 Voice connection is READY!');
-    });
-
     const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
     const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
-
     const player = createAudioPlayer();
 
-    player.on('stateChange', (oldState, newState) => {
-      console.log(`🔎 Player changed from ${oldState.status} to ${newState.status}`);
-    });
+    player.play(resource);
+    connection.subscribe(player);
 
     player.on(AudioPlayerStatus.Playing, () => {
-      message.channel.send('🎵 **Playing song now!**');
+      message.channel.send('🎶 Now playing!');
     });
 
     player.on(AudioPlayerStatus.Idle, () => {
-      console.log('⏹️ Audio player is idle, disconnecting.');
       connection.destroy();
     });
 
-    player.on('error', (error) => {
-      console.error('🚨 Player Error:', error);
-      message.channel.send(`🚨 **Player Error:** ${error.message}`);
+    player.on('error', error => {
+      console.error('Player error:', error);
+      message.channel.send('❌ Error playing audio.');
       connection.destroy();
     });
-
-    connection.subscribe(player);
-    player.play(resource);
   }
 
   if (command === 'leave') {
     const connection = getVoiceConnection(message.guild.id);
     if (connection) {
       connection.destroy();
-      message.reply('👋 **Left the voice channel!**');
-    } else {
-      message.reply('❌ **Not connected to any voice channel!**');
+      message.reply('👋 Left the voice channel.');
     }
   }
 });
 
-client.login(token);
+client.login(process.env.TOKEN);
